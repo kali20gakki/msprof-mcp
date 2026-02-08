@@ -1,24 +1,70 @@
 # msprof mcp
 
 ## 简介
-msprof mcp 服务器，提供LLM分析Ascend Pytoch Profiler采集的性能数据的能力。
+msprof mcp 是一个基于 Model Context Protocol (MCP) 的服务器，旨在为大语言模型 (LLM) 提供分析 Ascend PyTorch Profiler 采集性能数据的能力。通过一系列内置工具，它可以帮助用户快速定位性能瓶颈、分析算子耗时、查看通信开销以及进行 Trace 数据的深度查询。
 
 ## 目录结构
 ```
 msprof_mcp/
-├── server.py # mcp 服务器入口
+├── server.py                 # MCP 服务器入口，负责注册和分发工具调用
 ├── tools/
-│   ├── msprof_analyze_cmd.py # msprof-analyze 命令
-│   ├── csv_analyze.py # csv 文件分析
-│   ├── json_analyze.py # json 文件分析
-│   └── trace_view_analyze.py # trace_view.json 文件分析
+│   ├── msprof_analyze_cmd.py # 封装 msprof-analyze 命令行工具
+│   ├── csv_analyze.py        # CSV 格式性能数据分析工具 (Kernel Details, Op Statistic)
+│   ├── json_analyze.py       # JSON 格式性能数据分析工具 (Profiler Info, Communication)
+│   └── trace_view/           # Trace View 深度分析工具集
+│       ├── trace_view_analyze.py # Trace View 分析入口
+│       ├── perfetto_tool.py      # Perfetto SQL 查询核心逻辑
+│       ├── connection_manager.py # 数据库连接管理
+│       └── query_helpers.py      # SQL 查询辅助函数
 └── README.md
 ```
 
+## MCP 能力说明
+
+本服务提供以下核心能力，支持多维度性能数据分析。您可以直接在对话中使用自然语言（如示例 Prompt）来调用这些工具。
+
+### 1. 总体分析 （msprof-analyze）
+
+| 工具名称 | 描述 | 示例 Prompt |
+| :--- | :--- | :--- |
+| `msprof_analyze_advisor` | 调用 `msprof-analyze advisor` 提供全方位性能建议（计算/调度瓶颈）。 | "分析 `/path/to/data` 目录下的性能数据，找出主要瓶颈。" |
+
+### 2. TimeLine 分析 (trace_view)
+
+| 工具名称 | 描述 | 示例 Prompt |
+| :--- | :--- | :--- |
+| `analyze_overlap` | 分析计算、通信与调度的重叠情况，判断负载特征（计算/通信密集型）。 | "分析 `/path/to/trace_view.json` 的计算和通信重叠情况。" |
+| `find_slices` | 搜索 Trace 中的特定 Slice（算子/函数），支持模糊匹配和时间范围过滤。 | "在 `/path/to/trace_view.json` 中查找所有 'MatMul' 算子。" |
+| `execute_sql_query` | 执行自定义 SQL 查询，支持 Slice/Thread/Process 等表的深度分析。 | "对 `/path/to/trace_view.json` 执行 SQL 查询，统计耗时超过 1ms 的 Slice 数量。" |
+
+### 3. 算子性能分析 (CSV)
+
+| 工具名称 | 描述 | 示例 Prompt |
+| :--- | :--- | :--- |
+| `analyze_kernel_details` | 分析 `kernel_details.csv`，提供耗时分布、Top N 算子、设备分布等。 | "分析 `/path/to/kernel_details.csv`，列出耗时最长的 10 个算子。" |
+| `get_operator_details` | 查询特定算子（按名称或类型）的详细执行信息。 | "从 `/path/to/kernel_details.csv` 中获取 'FlashAttention' 算子的详细信息。" |
+| `analyze_op_statistic` | 分析 `op_statistic.csv`，提供调用次数、总耗时及 Core 类型分布。 | "统计 `/path/to/op_statistic.csv` 中的算子调用次数和总耗时。" |
+| `get_op_type_details` | 查询特定类型算子或 Core 类型算子的详细统计数据。 | "查看 `/path/to/op_statistic.csv` 中所有 'AI_CORE' 类型的算子统计。" |
+| `search_csv_by_field` | 通用 CSV 字段搜索工具，支持按列值过滤。 | "在 `/path/to/file.csv` 的 'Name' 列中搜索包含 'Conv' 的行。" |
+
+### 4. 通信性能分析 (JSON)
+
+| 工具名称 | 描述 | 示例 Prompt |
+| :--- | :--- | :--- |
+| `analyze_communication` | 分析 `communication_matrix.json`，识别 P2P/集合通信瓶颈及慢链路。 | "分析 `/path/to/communication_matrix.json`，找出带宽利用率低的链路。" |
+| `analyze_communication_trace` | 分析 `communication.json`，提供通信操作的时间分解（Transit, Wait）和带宽详情。 | "分析 `/path/to/communication.json`，查看通信操作的等待时间分布。" |
+
+### 5. 配置信息查询
+
+| 工具名称 | 描述 | 示例 Prompt |
+| :--- | :--- | :--- |
+| `get_profiler_config` | 获取 `profiler_info.json` 中的配置信息（版本、软硬件环境）。 | "读取 `/path/to/profiler_info.json`，查看 Profiler 配置版本。" |
+
 ## 集成方法
 
-### 场景一：集成到cherry studio
-在cherry studio MCP 配置json添加如下配置：
+### 场景一：集成到 Cherry Studio
+在 Cherry Studio 的 MCP 配置 JSON 中添加如下配置：
+
 ```json
 {
   "mcpServers": {
@@ -28,8 +74,6 @@ msprof_mcp/
       "baseUrl": "",
       "command": "uv",
       "args": [
-        "--directory",
-        "/path/to/repo/msprof_mcp",
         "run",
         "server.py"
       ],
