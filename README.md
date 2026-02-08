@@ -60,10 +60,32 @@ msprof_mcp/
 | :--- | :--- | :--- |
 | `get_profiler_config` | 获取 `profiler_info.json` 中的配置信息（版本、软硬件环境）。 | "读取 `/path/to/profiler_info.json`，查看 Profiler 配置版本。" |
 
+## 快速开始
+
+### 方式一：直接运行 (PyPI)
+如果您已安装 `uv`，可以直接运行以下命令启动服务：
+
+```bash
+uvx msprof-mcp
+```
+
+### 方式二：本地开发运行
+```bash
+# 1. 克隆代码仓库
+git clone <repository_url>
+cd msprof_mcp
+
+# 2. 运行服务
+uv run msprof-mcp
+```
+
 ## 集成方法
 
-### 场景一：集成到 Cherry Studio
-在 Cherry Studio 的 MCP 配置 JSON 中添加如下配置：
+### 集成到 Cherry Studio / Claude Desktop
+
+在 MCP 配置 JSON 中添加如下配置。建议优先使用 PyPI 版本。
+
+#### 1. 使用 PyPI 版本 (推荐)
 
 ```json
 {
@@ -71,19 +93,37 @@ msprof_mcp/
     "msprof-mcp": {
       "name": "msprof_mcp",
       "description": "msprof mcp server",
-      "baseUrl": "",
       "command": "uvx",
       "args": [
-        "run",
         "msprof-mcp"
       ],
       "env": {},
       "isActive": true,
-      "type": "stdio",
-      "registryUrl": "",
-      "timeout": "6000",
-      "longRunning": true
+      "type": "stdio"
     }
   }
 }
 ```
+
+#### 2. 使用本地源码 (开发调试)
+
+```json
+{
+  "mcpServers": {
+    "msprof-mcp-local": {
+      "name": "msprof_mcp_local",
+      "description": "msprof mcp server (local)",
+      "command": "uv",
+      "args": [
+        "run",
+        "msprof-mcp"
+      ],
+      "cwd": "/absolute/path/to/msprof_mcp", 
+      "env": {},
+      "isActive": true,
+      "type": "stdio"
+    }
+  }
+}
+```
+> 注意：使用本地源码时，请将 `cwd` 修改为您的实际项目路径。
