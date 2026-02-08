@@ -1,11 +1,22 @@
 [project]
 name = "msprof-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server for Ascend Profiler (msprof) analysis"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.26.0",
-    "msprof-analyze>=8.2.0",
     "perfetto>=0.16.0",
+    "pandas>=2.0.0",
+    "msprof-analyze>=8.2.0",
 ]
+authors = [
+    { name = "Wei Zhang", email = "example@example.com" }
+]
+
+[project.scripts]
+msprof-mcp = "msprof_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

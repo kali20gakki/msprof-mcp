@@ -6,16 +6,16 @@ msprof mcp 是一个基于 Model Context Protocol (MCP) 的服务器，旨在为
 ## 目录结构
 ```
 msprof_mcp/
-├── server.py                 # MCP 服务器入口，负责注册和分发工具调用
-├── tools/
-│   ├── msprof_analyze_cmd.py # 封装 msprof-analyze 命令行工具
-│   ├── csv_analyze.py        # CSV 格式性能数据分析工具 (Kernel Details, Op Statistic)
-│   ├── json_analyze.py       # JSON 格式性能数据分析工具 (Profiler Info, Communication)
-│   └── trace_view/           # Trace View 深度分析工具集
-│       ├── trace_view_analyze.py # Trace View 分析入口
-│       ├── perfetto_tool.py      # Perfetto SQL 查询核心逻辑
-│       ├── connection_manager.py # 数据库连接管理
-│       └── query_helpers.py      # SQL 查询辅助函数
+├── pyproject.toml            # 项目配置文件 (build-system, dependencies)
+├── src/
+│   └── msprof_mcp/
+│       ├── __init__.py
+│       ├── server.py                 # MCP 服务器入口
+│       └── tools/                    # 工具包
+│           ├── msprof_analyze_cmd.py
+│           ├── csv_analyze.py
+│           ├── json_analyze.py
+│           └── trace_view/
 └── README.md
 ```
 
@@ -72,10 +72,10 @@ msprof_mcp/
       "name": "msprof_mcp",
       "description": "msprof mcp server",
       "baseUrl": "",
-      "command": "uv",
+      "command": "uvx",
       "args": [
         "run",
-        "server.py"
+        "msprof-mcp"
       ],
       "env": {},
       "isActive": true,
