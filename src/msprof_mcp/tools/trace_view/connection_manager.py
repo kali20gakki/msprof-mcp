@@ -34,14 +34,12 @@ class ConnectionManager:
         with self._lock:
             # If different path, close existing and open new
             if self._current_trace_path != trace_path:
-                logger.info(f"Switching trace connection from {self._current_trace_path} to {trace_path}")
                 self._close_current_unsafe()
                 self._current_trace_path = trace_path
                 self._current_connection = self._create_connection(trace_path)
                 
             # If same path but no connection, create new one
             elif self._current_connection is None:
-                logger.info(f"Creating new connection to {trace_path}")
                 self._current_connection = self._create_connection(trace_path)
                 
             # Test connection health before returning
@@ -66,7 +64,6 @@ class ConnectionManager:
         """
         try:
             tp = TraceProcessor(trace=trace_path)
-            logger.info(f"Successfully connected to trace: {trace_path}")
             return tp
         except FileNotFoundError as e:
             logger.error(f"Trace file not found: {trace_path}")
@@ -121,8 +118,6 @@ class ConnectionManager:
         Returns:
             TraceProcessor: New connection
         """
-        logger.info(f"Attempting to reconnect to {trace_path}")
-        
         # Close existing connection
         self._close_current_unsafe()
         
@@ -130,7 +125,6 @@ class ConnectionManager:
         try:
             self._current_connection = self._create_connection(trace_path)
             self._current_trace_path = trace_path
-            logger.info(f"Successfully reconnected to {trace_path}")
             return self._current_connection
         except Exception as e:
             logger.error(f"Reconnection failed for {trace_path}: {e}")
@@ -145,7 +139,6 @@ class ConnectionManager:
         """Close current connection without acquiring lock (internal use only)."""
         if self._current_connection is not None:
             try:
-                logger.info(f"Closing connection to {self._current_trace_path}")
                 self._current_connection.close()
             except Exception as e:
                 logger.warning(f"Error closing connection: {e}")
@@ -155,7 +148,6 @@ class ConnectionManager:
     
     def cleanup(self):
         """Cleanup method called by MCP server shutdown lifecycle."""
-        logger.info("Cleaning up connection manager")
         self.close_current()
     
     def get_current_trace_path(self) -> Optional[str]:
@@ -218,7 +210,6 @@ class BaseTool:
         except (ConnectionError, Exception) as e:
             # Check if this is a connection-related error that might benefit from reconnection
             if self._should_retry_on_error(e):
-                logger.info(f"Attempting reconnection due to error: {e}")
                 try:
                     tp = self.connection_manager._reconnect(trace_path)
                     return operation(tp)

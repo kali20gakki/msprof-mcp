@@ -9,6 +9,7 @@ import subprocess
 from typing import Literal
 
 logger = logging.getLogger(__name__)
+TIMEOUT_SECONDS = 3000
 
 
 class MsProfAnalyzer:
@@ -95,13 +96,12 @@ class MsProfAnalyzer:
         
         try:
             # Execute command
-            logger.info(f"Executing: {' '.join(cmd)}")
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=300  # 5 minutes timeout
+                timeout=TIMEOUT_SECONDS
             )
             
             # Build response with raw output (no processing)
@@ -120,10 +120,14 @@ class MsProfAnalyzer:
             return json.dumps(response, indent=2, ensure_ascii=False)
             
         except subprocess.TimeoutExpired:
-            logger.error(f"Command timeout after 300 seconds: {' '.join(cmd)}")
+            logger.error(
+                f"Command timeout after {TIMEOUT_SECONDS} seconds: {' '.join(cmd)}"
+            )
             return json.dumps({
                 "error": "EXECUTION_TIMEOUT",
-                "message": "msprof-analyze command timed out after 300 seconds",
+                "message": (
+                    f"msprof-analyze command timed out after {TIMEOUT_SECONDS} seconds"
+                ),
                 "execution_info": {
                     "command": " ".join(cmd),
                     "directory": profiler_data_dir,

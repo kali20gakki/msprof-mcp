@@ -148,8 +148,8 @@ class SliceInfoTool(BaseTool):
                     name_val = getattr(row, "name", None)
                     if isinstance(name_val, str):
                         other_slices.append(name_val)
-            except Exception as e:
-                logger.info(f"Similar names query failed (non-fatal): {e}")
+            except Exception:
+                pass
 
             return {
                 "sliceName": slice_name,
@@ -522,4 +522,3 @@ class SliceFinderTool(BaseTool):
             return result
 
         return self.run_formatted(trace_path, process_name, _operation)
-
