@@ -9,6 +9,7 @@ from .tools.msprof_analyze_cmd import msprof_analyze_advisor
 from .tools.trace_view.trace_view_analyze import TraceViewAnalyzeTool
 from .tools.csv_analyze import KernelDetailsAnalyzer, OpStatisticAnalyzer, GenericCsvAnalyzer
 from .tools.json_analyze import ProfilerInfoAnalyzer, CommunicationMatrixAnalyzer
+from .tools.db_query import execute_sql, execute_sql_to_csv
 # Import other tools here as needed in the future
 
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +47,9 @@ def create_server() -> FastMCP:
 
     comm_matrix_analyzer = CommunicationMatrixAnalyzer()
     mcp.tool()(comm_matrix_analyzer.analyze_communication)
+
+    mcp.tool()(execute_sql)
+    mcp.tool()(execute_sql_to_csv)
 
     return mcp
 

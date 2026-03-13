@@ -60,6 +60,13 @@ msprof_mcp/
 | :--- | :--- | :--- |
 | `get_profiler_config` | 获取 `profiler_info.json` 中的配置信息（版本、软硬件环境）。 | "读取 `/path/to/profiler_info.json`，查看 Profiler 配置版本。" |
 
+### 6. SQL执行
+
+| 工具名称                 | 描述                                                  | 示例 Prompt                                                                                                                               |
+|:---------------------|:----------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `execute_sql`        | 执行只读 SQL 并返回结果，当结果行数/返回字符数超阈值时会返回失败并提示收敛查询。         | "对 `/path/to/ascend_pytorch_profiler.db` 执行 SQL：`SELECT name, SUM(total_time) AS total FROM COMPUTE_TASK_INFO GROUP BY name LIMIT 20`。" |
+| `execute_sql_to_csv` | 执行只读 SQL 并将**全量结果**保存为 CSV，只返回导出状态、路径和行数，不返回查询结果内容。 | "将 `/path/to/ascend_pytorch_profiler.db` 中 `SELECT * FROM TASK WHERE taskType='AI_CORE'` 的结果导出到 `/tmp/op_statistic_ai_core.csv`。"       |
+
 ## 快速开始
 
 ### 方式一：直接运行 (PyPI)
