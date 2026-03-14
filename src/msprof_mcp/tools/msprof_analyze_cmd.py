@@ -92,7 +92,7 @@ class MsProfAnalyzer:
             }, indent=2)
         
         # Construct command
-        cmd = ["msprof-analyze", "advisor", mode, "-d", profiler_data_dir]
+        cmd = ["msprof-analyze", "advisor", mode, "-d", profiler_data_dir, "--stdout"]
         
         try:
             # Execute command
