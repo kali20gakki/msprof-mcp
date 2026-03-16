@@ -1,0 +1,12 @@
+{
+  "platform": "win32",
+  "machine": [
+    "amd64"
+  ],
+  "arch": "windows-amd64",
+  "file_name": "trace_processor_shell.exe",
+  "file_size": 12559360,
+  "sha256": "7138e6f97c562fa063e1ceab1a0221c1c211328a304060aa8899363b07c7e2ab",
+  "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/windows-amd64/trace_processor_shell.exe",
+  "local_path": "src\\msprof_mcp\\resources\\perfetto\\trace_processor_shell.exe"
+}

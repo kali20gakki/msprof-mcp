@@ -173,7 +173,7 @@ class TraceViewAnalyzeTool:
 if __name__ == "__main__":
     tool = TraceViewAnalyzeTool()
     trace_path = "/Users/weizhang/Downloads/kv_cache_type_page_seqlen_1024_bs_1_profile_count_0/g340-cd51-4900-7a3f-dc8e-d804-1072_348921_20251105072538961_ascend_pt/ASCEND_PROFILER_OUTPUT/trace_view.json"
-    
+    trace_path = r"C:\Project\ProfilingData\profile_count_0\kv_cache_type_page_seqlen_1024_bs_1_profile_count_0\g340-cd51-4900-7a3f-dc8e-d804-1072_348890_20251105072538951_ascend_pt\ASCEND_PROFILER_OUTPUT\trace_view.json"
     print("--- Overlap Analysis ---")
     res = tool.analyze_overlap(trace_path)
     print(res)

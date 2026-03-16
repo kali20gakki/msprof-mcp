@@ -4,7 +4,9 @@ import threading
 import logging
 import json
 from typing import Callable, Any, Dict, Optional
-from perfetto.trace_processor import TraceProcessor
+from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+
+from .trace_processor_shell import resolve_trace_processor_shell_path
 
 
 logger = logging.getLogger(__name__)
@@ -63,7 +65,16 @@ class ConnectionManager:
             ConnectionError: If connection fails
         """
         try:
-            tp = TraceProcessor(trace=trace_path)
+            shell_path = resolve_trace_processor_shell_path()
+        except FileNotFoundError as e:
+            logger.error(f"Configured trace processor shell is missing: {e}")
+            raise ConnectionError(str(e))
+
+        try:
+            tp = TraceProcessor(
+                trace=trace_path,
+                config=TraceProcessorConfig(bin_path=shell_path),
+            )
             return tp
         except FileNotFoundError as e:
             logger.error(f"Trace file not found: {trace_path}")
