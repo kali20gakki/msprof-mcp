@@ -168,7 +168,9 @@ def download_entry(entry: dict) -> Path:
         except RuntimeError:
             destination.unlink()
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # Keep the temporary download on the same filesystem as the destination so
+    # the final replace works on Windows GitHub runners (workspace is often on D:).
+    with tempfile.TemporaryDirectory(dir=RESOURCE_DIR) as tmpdir:
         tmp_path = Path(tmpdir) / entry["file_name"]
         download_file(entry["url"], tmp_path)
         verify_download(tmp_path, entry)
