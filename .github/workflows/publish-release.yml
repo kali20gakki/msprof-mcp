@@ -144,6 +144,17 @@ jobs:
               "${prerelease_flag[@]}"
           fi
 
+      - name: Add release links to job summary
+        run: |
+          release_url="https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+          {
+            echo "### Release links"
+            echo ""
+            echo "- GitHub Release: [${{ github.ref_name }}](${release_url})"
+            echo "- Workflow artifact: [wheels-all](${{ needs.build-wheels.outputs.combined-artifact-url }})"
+            echo "- Note: the workflow artifact link requires GitHub sign-in and follows the artifact retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish-pypi:
     name: publish-pypi
     if: ${{ vars.PUBLISH_TO_PYPI == 'true' }}
@@ -180,3 +191,12 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+
+      - name: Add PyPI link to job summary
+        run: |
+          pypi_url="https://pypi.org/project/msprof-mcp/${{ needs.validate-tag.outputs.version }}/"
+          {
+            echo "### PyPI link"
+            echo ""
+            echo "- PyPI: [msprof-mcp ${{ needs.validate-tag.outputs.version }}](${pypi_url})"
+          } >> "$GITHUB_STEP_SUMMARY"

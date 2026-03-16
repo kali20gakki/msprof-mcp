@@ -3,6 +3,10 @@ name: Build Wheels
 on:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      combined-artifact-url:
+        description: Download URL for the combined wheel artifact of this run.
+        value: ${{ jobs.bundle-artifacts.outputs.combined-artifact-url }}
 
 permissions:
   contents: read
@@ -98,6 +102,7 @@ jobs:
         run: ls -lh dist
 
       - name: Upload wheel artifact
+        id: upload_wheel_artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.name }}
@@ -105,10 +110,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Add wheel link to job summary
+        run: |
+          {
+            echo "### Wheel artifact"
+            echo ""
+            echo "- Platform: \`${{ matrix.name }}\`"
+            echo "- Download: [wheel-${{ matrix.name }}](${{ steps.upload_wheel_artifact.outputs.artifact-url }})"
+            echo "- Note: the artifact link requires GitHub sign-in and follows the 14-day retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   bundle-artifacts:
     name: bundle-all-wheels
     runs-on: ubuntu-24.04
     needs: build-wheel
+    outputs:
+      combined-artifact-url: ${{ steps.upload_combined_artifact.outputs.artifact-url }}
 
     steps:
       - name: Download wheel artifacts
@@ -122,9 +139,21 @@ jobs:
         run: ls -lh dist
 
       - name: Upload combined wheel artifact
+        id: upload_combined_artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheels-all
           path: dist/*.whl
           if-no-files-found: error
           retention-days: 14
+
+      - name: Add combined wheel link to job summary
+        run: |
+          run_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          {
+            echo "### Combined wheel artifact"
+            echo ""
+            echo "- Download: [wheels-all](${{ steps.upload_combined_artifact.outputs.artifact-url }})"
+            echo "- Run page: [${{ github.run_id }}](${run_url})"
+            echo "- Note: the artifact link requires GitHub sign-in and follows the 14-day retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"

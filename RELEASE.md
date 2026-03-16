@@ -129,6 +129,7 @@ git push origin v0.1.2
 - Release 附件中包含多平台 `.whl`
 - Release 附件中包含一个 `.tar.gz` 源码包
 - 如果启用了 PyPI 发布，PyPI 上会出现对应版本
+- GitHub Actions 运行详情的 `Summary` 中会显示可点击的 artifact 下载链接，以及 GitHub Release / PyPI 链接
 
 ## 9. 常见问题
 
