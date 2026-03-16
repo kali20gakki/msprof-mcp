@@ -1,12 +1,91 @@
 {
-  "platform": "win32",
-  "machine": [
-    "amd64"
-  ],
-  "arch": "windows-amd64",
-  "file_name": "trace_processor_shell.exe",
-  "file_size": 12559360,
-  "sha256": "7138e6f97c562fa063e1ceab1a0221c1c211328a304060aa8899363b07c7e2ab",
-  "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/windows-amd64/trace_processor_shell.exe",
-  "local_path": "src\\msprof_mcp\\resources\\perfetto\\trace_processor_shell.exe"
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "platform": "darwin",
+      "machine": [
+        "x86_64"
+      ],
+      "arch": "mac-amd64",
+      "file_name": "trace_processor_shell",
+      "resource_name": "trace_processor_shell-mac-amd64",
+      "package_file_name": "trace_processor_shell",
+      "file_size": 12713944,
+      "sha256": "a15360712875344d8bb8e4c461cd7ce9ec250f71a76f89e6ae327c5185eb4855",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/mac-amd64/trace_processor_shell",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-mac-amd64"
+    },
+    {
+      "platform": "darwin",
+      "machine": [
+        "arm64"
+      ],
+      "arch": "mac-arm64",
+      "file_name": "trace_processor_shell",
+      "resource_name": "trace_processor_shell-mac-arm64",
+      "package_file_name": "trace_processor_shell",
+      "file_size": 11790168,
+      "sha256": "23638faac4ca695e86039a01fade05ff4a38ffa89672afc7a4e4077318603507",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/mac-arm64/trace_processor_shell",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-mac-arm64"
+    },
+    {
+      "platform": "linux",
+      "machine": [
+        "x86_64"
+      ],
+      "arch": "linux-amd64",
+      "file_name": "trace_processor_shell",
+      "resource_name": "trace_processor_shell-linux-amd64",
+      "package_file_name": "trace_processor_shell",
+      "file_size": 12971248,
+      "sha256": "a7aa1f738bbe2926a70f0829d00837f5720be8cafe26de78f962094fa24a3da4",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-amd64/trace_processor_shell",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-amd64"
+    },
+    {
+      "platform": "linux",
+      "machine": [
+        "armv6l",
+        "armv7l",
+        "armv8l"
+      ],
+      "arch": "linux-arm",
+      "file_name": "trace_processor_shell",
+      "resource_name": "trace_processor_shell-linux-arm",
+      "package_file_name": "trace_processor_shell",
+      "file_size": 9667584,
+      "sha256": "aa0dc203dd021612c97ef8b08215a73b923c9b7e22ff51161a6a2882d0ed85b7",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-arm/trace_processor_shell",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm"
+    },
+    {
+      "platform": "linux",
+      "machine": [
+        "aarch64"
+      ],
+      "arch": "linux-arm64",
+      "file_name": "trace_processor_shell",
+      "resource_name": "trace_processor_shell-linux-arm64",
+      "package_file_name": "trace_processor_shell",
+      "file_size": 12371336,
+      "sha256": "53af6216259df603115f1eefa94f034eef9c29cf851df15302ad29160334ca81",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-arm64/trace_processor_shell",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm64"
+    },
+    {
+      "platform": "win32",
+      "machine": [
+        "amd64"
+      ],
+      "arch": "windows-amd64",
+      "file_name": "trace_processor_shell.exe",
+      "resource_name": "trace_processor_shell-windows-amd64.exe",
+      "package_file_name": "trace_processor_shell.exe",
+      "file_size": 12559360,
+      "sha256": "7138e6f97c562fa063e1ceab1a0221c1c211328a304060aa8899363b07c7e2ab",
+      "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/windows-amd64/trace_processor_shell.exe",
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-windows-amd64.exe"
+    }
+  ]
 }
