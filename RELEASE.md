@@ -21,7 +21,15 @@
 
 ### PyPI 发布
 
-PyPI 发布是可选的，默认关闭。要启用它，需要完成以下配置：
+PyPI 发布是可选的，默认关闭。
+
+当前仓库使用的是 **PyPI Trusted Publisher + GitHub OIDC**，**不需要**手动创建或保存 `PYPI_TOKEN`。也就是说：
+
+- 不需要在 GitHub Secrets 中添加 `PYPI_API_TOKEN`
+- 不需要在 workflow 中写用户名/密码
+- 只需要在 GitHub 和 PyPI 两边各做一次信任配置
+
+要启用它，需要完成以下配置：
 
 1. 在 GitHub 仓库 `Settings > Secrets and variables > Actions > Variables` 中添加仓库变量：
 
@@ -36,6 +44,36 @@ Name: pypi
 ```
 
 3. 在 PyPI 项目中配置 Trusted Publisher，使当前 GitHub 仓库的 `publish-release.yml` 可以通过 OIDC 发布。
+
+具体操作如下：
+
+1. 登录 PyPI。
+2. 打开项目 `msprof-mcp` 的管理页面。
+3. 进入 `Manage > Publishing`。
+4. 点击 `Add a publisher`。
+5. 选择 `GitHub Actions`。
+6. 按下面的值填写：
+
+```text
+PyPI project name: msprof-mcp
+Owner: kali20gakki
+Repository name: msprof-mcp
+Workflow name: publish-release.yml
+Environment name: pypi
+```
+
+7. 保存配置。
+
+配置完成后，PyPI 会信任这个 GitHub 仓库中的这个 workflow；当 workflow 运行到发布步骤时，GitHub Actions 会通过 OIDC 自动向 PyPI 申请短期凭证并完成上传。
+
+如果你在 PyPI 页面里看到的是 `Repository owner` / `Repository name` / `Workflow filename` 之类的字段名，含义是一样的，按上面的值填写即可。
+
+如果 `msprof-mcp` 这个项目还没有在 PyPI 上创建：
+
+- 需要先在 PyPI 中创建对应项目，或者
+- 使用 PyPI 的 pending publisher 流程预先登记发布者
+
+当前本仓库文档默认按“PyPI 上已经存在 `msprof-mcp` 项目”来说明。
 
 如果没有完成上面的配置，tag 发布时仍然会正常创建 GitHub Release，只是不会上传到 PyPI。
 
@@ -150,7 +188,20 @@ git push origin v0.1.2
 - 没有设置 `PUBLISH_TO_PYPI=true`
 - 没有创建 `pypi` environment
 - PyPI Trusted Publisher 没有配置好
+- PyPI 中填写的 `owner`、`repository`、`workflow filename` 或 `environment name` 与实际不一致
 - 该版本已经存在于 PyPI，PyPI 不允许覆盖上传
+
+### 是否需要配置 PyPI Token
+
+不需要。
+
+当前仓库的发布方式是：
+
+- GitHub Actions workflow: `.github/workflows/publish-release.yml`
+- 发布 job: `publish-pypi`
+- 认证方式: GitHub OIDC + PyPI Trusted Publisher
+
+只要 GitHub 仓库变量、`pypi` environment、以及 PyPI Trusted Publisher 三者配置正确，推送版本 tag 时就会自动发布到 PyPI。
 
 ### 某个平台 wheel 构建失败
 
