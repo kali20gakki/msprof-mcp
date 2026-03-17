@@ -8,7 +8,7 @@ dependencies = [
     "mcp[cli]>=1.26.0",
     "perfetto>=0.16.0",
     "pandas>=2.0.0",
-    "msprof-analyze==26.0.0b1",
+    "msprof-analyze==26.0.0b2",
 ]
 authors = [
     { name = "Wei Zhang", email = "example@example.com" }
