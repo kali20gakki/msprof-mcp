@@ -6,7 +6,10 @@ import json
 from typing import Callable, Any, Dict, Optional
 from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
 
-from .trace_processor_shell import resolve_trace_processor_shell_path
+from .trace_processor_shell import (
+    TraceProcessorShellCompatibilityError,
+    resolve_trace_processor_shell_path,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,9 @@ class ConnectionManager:
             shell_path = resolve_trace_processor_shell_path()
         except FileNotFoundError as e:
             logger.error(f"Configured trace processor shell is missing: {e}")
+            raise ConnectionError(str(e))
+        except TraceProcessorShellCompatibilityError as e:
+            logger.error(f"Configured trace processor shell is incompatible: {e}")
             raise ConnectionError(str(e))
 
         try:

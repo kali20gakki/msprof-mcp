@@ -22,7 +22,8 @@ CANONICAL_PACKAGE_NAMES = {
     "linux": "trace_processor_shell",
     "win32": "trace_processor_shell.exe",
 }
-METADATA_SCHEMA_VERSION = 1
+METADATA_SCHEMA_VERSION = 2
+GLIBC_VERSION_PATTERN = re.compile(rb"GLIBC_(\d+)\.(\d+)(?:\.(\d+))?")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -199,6 +200,21 @@ def verify_download(path: Path, entry: dict) -> None:
         )
 
 
+def detect_glibc_min_version(path: Path) -> str | None:
+    versions = {
+        tuple(int(part or 0) for part in match.groups())
+        for match in GLIBC_VERSION_PATTERN.finditer(path.read_bytes())
+    }
+    if not versions:
+        return None
+
+    major, minor, patch = max(versions)
+    version = f"{major}.{minor}"
+    if patch:
+        version = f"{version}.{patch}"
+    return version
+
+
 def resource_name_for_entry(entry: dict) -> str:
     file_name = entry["file_name"]
     suffix = Path(file_name).suffix
@@ -227,20 +243,23 @@ def cleanup_existing_artifacts() -> None:
 def write_metadata(downloads: list[tuple[dict, Path]]) -> None:
     artifacts = []
     for entry, destination in downloads:
-        artifacts.append(
-            {
-                "platform": entry["platform"],
-                "machine": entry["machine"],
-                "arch": entry["arch"],
-                "file_name": entry["file_name"],
-                "resource_name": destination.name,
-                "package_file_name": CANONICAL_PACKAGE_NAMES[entry["platform"]],
-                "file_size": entry["file_size"],
-                "sha256": entry["sha256"],
-                "source_url": entry["url"],
-                "local_path": destination.relative_to(PROJECT_ROOT).as_posix(),
-            }
-        )
+        artifact = {
+            "platform": entry["platform"],
+            "machine": entry["machine"],
+            "arch": entry["arch"],
+            "file_name": entry["file_name"],
+            "resource_name": destination.name,
+            "package_file_name": CANONICAL_PACKAGE_NAMES[entry["platform"]],
+            "file_size": entry["file_size"],
+            "sha256": entry["sha256"],
+            "source_url": entry["url"],
+            "local_path": destination.relative_to(PROJECT_ROOT).as_posix(),
+        }
+        if entry["platform"] == "linux":
+            glibc_min_version = detect_glibc_min_version(destination)
+            if glibc_min_version is not None:
+                artifact["glibc_min_version"] = glibc_min_version
+        artifacts.append(artifact)
 
     metadata = {
         "schema_version": METADATA_SCHEMA_VERSION,

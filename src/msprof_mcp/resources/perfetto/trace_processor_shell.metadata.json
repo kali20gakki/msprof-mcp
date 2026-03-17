@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "artifacts": [
     {
       "platform": "darwin",
@@ -41,7 +41,8 @@
       "file_size": 12971248,
       "sha256": "a7aa1f738bbe2926a70f0829d00837f5720be8cafe26de78f962094fa24a3da4",
       "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-amd64/trace_processor_shell",
-      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-amd64"
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-amd64",
+      "glibc_min_version": "2.34"
     },
     {
       "platform": "linux",
@@ -57,7 +58,8 @@
       "file_size": 9667584,
       "sha256": "aa0dc203dd021612c97ef8b08215a73b923c9b7e22ff51161a6a2882d0ed85b7",
       "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-arm/trace_processor_shell",
-      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm"
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm",
+      "glibc_min_version": "2.23"
     },
     {
       "platform": "linux",
@@ -71,7 +73,8 @@
       "file_size": 12371336,
       "sha256": "53af6216259df603115f1eefa94f034eef9c29cf851df15302ad29160334ca81",
       "source_url": "https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v54.0/linux-arm64/trace_processor_shell",
-      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm64"
+      "local_path": "src/msprof_mcp/resources/perfetto/trace_processor_shell-linux-arm64",
+      "glibc_min_version": "2.23"
     },
     {
       "platform": "win32",
