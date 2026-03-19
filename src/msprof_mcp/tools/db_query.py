@@ -151,7 +151,7 @@ class DBQueryTool:
             }
 
             # Guard against excessively large JSON payloads.
-            payload_str = json.dumps(result, ensure_ascii=False, indent=2)
+            payload_str = json.dumps(result, ensure_ascii=False)
             if len(payload_str) > MAX_RESULT_CHARS:
                 return self._error(
                     "RESULT_TOO_LARGE",
