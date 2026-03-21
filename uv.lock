@@ -601,7 +601,7 @@ wheels = [
 
 [[package]]
 name = "msprof-analyze"
-version = "26.0.0b1"
+version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -621,12 +621,12 @@ dependencies = [
     { name = "xlsxwriter" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/1f/12c7ae01b47abfc7965d8411949fdb697c16e222a052a91d725f29814008/msprof_analyze-26.0.0b1-py3-none-any.whl", hash = "sha256:4ea98c1fdd30499d6ff6fee931783bc75c3063385bbd8319bce2f0a7a00a1dea", size = 869818, upload-time = "2026-03-14T08:25:35.791Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/aa/7ff02085c75b0e14e62f4d047c0752072dc1df4047aa152a77bbdac0d3ba/msprof_analyze-8.5.0-py3-none-any.whl", hash = "sha256:b25026d70c05afe7058ddbb3db880f16df3bc3d8dd394be8ee33b5a7b52cb3cb", size = 869684, upload-time = "2026-03-17T11:56:20.995Z" },
 ]
 
 [[package]]
 name = "msprof-mcp"
-version = "0.1.1"
+version = "0.1.6"
 source = { editable = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
@@ -638,7 +638,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.26.0" },
-    { name = "msprof-analyze", specifier = "==26.0.0b1" },
+    { name = "msprof-analyze", specifier = "==8.5.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "perfetto", specifier = ">=0.16.0" },
 ]

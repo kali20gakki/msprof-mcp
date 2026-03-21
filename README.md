@@ -134,3 +134,17 @@ uv run msprof-mcp
 }
 ```
 > 注意：使用本地源码时，请将 `cwd` 修改为您的实际项目路径。
+
+### 日志说明
+
+`msprof-mcp` 默认使用 `WARNING` 日志级别，避免在 `stdio` 集成场景下把 `mcp.server.lowlevel.server` 的请求级 `INFO` 日志打印到 Agent CLI/Cherry Studio/Claude Desktop 终端中。
+
+如果需要排查问题，可以在 MCP 配置的 `env` 中显式开启更详细日志，例如：
+
+```json
+{
+  "MSPROF_MCP_LOG_LEVEL": "INFO"
+}
+```
+
+可选值包括 `DEBUG`、`INFO`、`WARNING`、`ERROR`。

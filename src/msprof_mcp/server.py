@@ -4,6 +4,7 @@ FastMCP server entry point.
 """
 
 import logging
+import os
 from mcp.server.fastmcp import FastMCP
 from .tools.msprof_analyze_cmd import msprof_analyze_advisor
 from .tools.trace_view.trace_view_analyze import TraceViewAnalyzeTool
@@ -12,8 +13,40 @@ from .tools.json_analyze import ProfilerInfoAnalyzer, CommunicationMatrixAnalyze
 from .tools.db_query import execute_sql, execute_sql_to_csv
 # Import other tools here as needed in the future
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+LOG_LEVEL_ENV_VAR = "MSPROF_MCP_LOG_LEVEL"
+PACKAGE_LOGGER_NAME = "msprof_mcp"
+DEFAULT_LOG_LEVEL = logging.WARNING
+QUIET_LOGGER_NAMES = ("mcp.server.lowlevel.server",)
+LOG_FORMAT = "%(levelname)s:%(name)s:%(message)s"
+
+
+def _resolve_log_level(level_name: str | None) -> int:
+    if not level_name:
+        return DEFAULT_LOG_LEVEL
+
+    candidate = getattr(logging, level_name.upper(), None)
+    return candidate if isinstance(candidate, int) else DEFAULT_LOG_LEVEL
+
+
+def configure_logging() -> int:
+    """Configure package logging for stdio usage without emitting noisy INFO request logs."""
+    level = _resolve_log_level(os.getenv(LOG_LEVEL_ENV_VAR))
+    package_logger = logging.getLogger(PACKAGE_LOGGER_NAME)
+    package_logger.setLevel(level)
+    package_logger.propagate = False
+
+    if not any(getattr(handler, "_msprof_mcp_handler", False) for handler in package_logger.handlers):
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        handler._msprof_mcp_handler = True
+        package_logger.addHandler(handler)
+
+    # Keep noisy MCP request lifecycle logs out of stdio clients unless code is changed explicitly.
+    for logger_name in QUIET_LOGGER_NAMES:
+        logging.getLogger(logger_name).setLevel(max(level, logging.WARNING))
+
+    return level
 
 
 def create_server() -> FastMCP:
@@ -55,6 +88,7 @@ def create_server() -> FastMCP:
 
 
 def main():
+    configure_logging()
     mcp = create_server()
     mcp.run(transport="stdio")
 
