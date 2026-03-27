@@ -5,19 +5,76 @@ MSProf Analyze Command Tool for performance bottleneck analysis.
 import json
 import logging
 import os
+import re
 import subprocess
 from typing import Literal
 
 logger = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 3000
+LOG_LINE_PATTERN = re.compile(
+    r"^\[(?P<timestamp>[^\]]+)\]\[(?P<level>[A-Z]+)\]\s*(?P<message>.*)$"
+)
+PROGRESS_PREFIXES = (
+    "Building dataset for timeline analysis:",
+    "Scanning timeline for affinity apis:",
+)
+
+
+def _is_progress_line(line: str) -> bool:
+    stripped = line.strip()
+    return any(stripped.startswith(prefix) for prefix in PROGRESS_PREFIXES)
+
+
+def _extract_json_message(message: str) -> str | None:
+    candidate = message.strip()
+    if not candidate or candidate[0] not in "{[":
+        return None
+
+    try:
+        json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+
+    return candidate
+
+
+def _sanitize_success_output(stdout: str, stderr: str) -> tuple[str, str]:
+    cleaned_stdout = stdout.strip()
+    stderr_lines: list[str] = []
+    extracted_json: str | None = None
+
+    for raw_line in stderr.splitlines():
+        if not raw_line.strip() or _is_progress_line(raw_line):
+            continue
+
+        match = LOG_LINE_PATTERN.match(raw_line.strip())
+        if not match:
+            stderr_lines.append(raw_line.strip())
+            continue
+
+        level = match.group("level")
+        message = match.group("message").strip()
+
+        if level == "INFO":
+            json_message = _extract_json_message(message)
+            if json_message:
+                extracted_json = json_message
+            continue
+
+        stderr_lines.append(raw_line.strip())
+
+    if not cleaned_stdout and extracted_json:
+        cleaned_stdout = extracted_json
+
+    return cleaned_stdout, "\n".join(stderr_lines)
 
 
 class MsProfAnalyzer:
     """
     Wrapper for msprof-analyze advisor command.
     
-    This tool executes msprof-analyze and returns the raw command output
-    without any filtering or processing.
+    This tool executes msprof-analyze and returns the analysis result while
+    suppressing noisy progress logs emitted to stderr.
     """
     
     def msprof_analyze_advisor(
@@ -26,15 +83,15 @@ class MsProfAnalyzer:
         mode: Literal["all", "computation", "schedule"] = "all",
     ) -> str:
         """
-        Execute msprof-analyze advisor command and return raw output.
+        Execute msprof-analyze advisor command and return analysis output.
         
         SCOPE:
         - Executes `msprof-analyze advisor` command on Ascend Profiler data.
-        - Returns raw command output without any processing.
+        - Extracts the useful analysis result from command output.
         
         CAPABILITIES:
         - Comprehensive performance analysis (computation + schedule bottlenecks)
-        - Returns complete, unfiltered command output for LLM analysis
+        - Suppresses noisy INFO/progress logs on successful execution
         - Detailed error reporting with context
         
         PARAMETERS:
@@ -48,8 +105,8 @@ class MsProfAnalyzer:
         OUTPUT:
         Returns JSON string with:
         - execution_info: Command execution metadata (command, directory, mode, status)
-        - stdout: Complete stdout from the command (unfiltered)
-        - stderr: Complete stderr from the command (if any)
+        - stdout: Analysis result content
+        - stderr: Warnings/errors only for successful runs
         - error: Error information (if execution failed)
         
         USAGE EXAMPLES:
@@ -103,8 +160,12 @@ class MsProfAnalyzer:
                 check=True,
                 timeout=TIMEOUT_SECONDS
             )
+
+            cleaned_stdout, cleaned_stderr = _sanitize_success_output(
+                result.stdout,
+                result.stderr,
+            )
             
-            # Build response with raw output (no processing)
             response = {
                 "execution_info": {
                     "command": " ".join(cmd),
@@ -113,8 +174,8 @@ class MsProfAnalyzer:
                     "status": "success",
                     "return_code": result.returncode
                 },
-                "stdout": result.stdout,
-                "stderr": result.stderr
+                "stdout": cleaned_stdout,
+                "stderr": cleaned_stderr
             }
             
             return json.dumps(response, indent=2, ensure_ascii=False)
@@ -193,15 +254,15 @@ def msprof_analyze_advisor(
     mode: Literal["all", "computation", "schedule"] = "all",
 ) -> str:
     """
-    Execute msprof-analyze advisor command and return raw output.
+    Execute msprof-analyze advisor command and return analysis output.
     
     SCOPE:
     - Executes `msprof-analyze advisor` command on Ascend Profiler data.
-    - Returns raw command output without any processing.
+    - Extracts the useful analysis result from command output.
     
     CAPABILITIES:
     - Comprehensive performance analysis (computation + schedule bottlenecks)
-    - Returns complete, unfiltered command output for LLM analysis
+    - Suppresses noisy INFO/progress logs on successful execution
     - Detailed error reporting with context
     
     PARAMETERS:
@@ -215,8 +276,8 @@ def msprof_analyze_advisor(
     OUTPUT:
     Returns JSON string with:
     - execution_info: Command execution metadata (command, directory, mode, status)
-    - stdout: Complete stdout from the command (unfiltered)
-    - stderr: Complete stderr from the command (if any)
+    - stdout: Analysis result content
+    - stderr: Warnings/errors only for successful runs
     - error: Error information (if execution failed)
     
     USAGE EXAMPLES:
