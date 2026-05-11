@@ -101,7 +101,8 @@ class MsProfAnalyzer:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=TIMEOUT_SECONDS
+                timeout=TIMEOUT_SECONDS,
+                stdin=subprocess.DEVNULL
             )
             
             # Build response with raw output (no processing)
