@@ -158,7 +158,8 @@ class MsProfAnalyzer:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=TIMEOUT_SECONDS
+                timeout=TIMEOUT_SECONDS,
+                stdin=subprocess.DEVNULL
             )
 
             cleaned_stdout, cleaned_stderr = _sanitize_success_output(
