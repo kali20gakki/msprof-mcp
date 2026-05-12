@@ -35,6 +35,7 @@ msprof_mcp/
 | :--- | :--- | :--- |
 | `analyze_overlap` | 分析计算、通信与调度的重叠情况，判断负载特征（计算/通信密集型）。 | "分析 `/path/to/trace_view.json` 的计算和通信重叠情况。" |
 | `find_slices` | 搜索 Trace 中的特定 Slice（算子/函数），支持模糊匹配和时间范围过滤。 | "在 `/path/to/trace_view.json` 中查找所有 'MatMul' 算子。" |
+| `get_flow_data` | 根据时间范围获取 Flow 关联的 CPU/NPU 算子明细，支持按 `cpu_op` 或 `npu_op` 入口查询；结果过大时可通过 `result_output_path` 导出 CSV。 | "获取 `/path/to/trace_view.json` 中 1000000000 到 2000000000 时间范围内的 NPU 算子关联 Flow 数据，并导出到 `/tmp/flow_data.csv`。" |
 | `execute_sql_query` | 执行自定义 SQL 查询，支持 Slice/Thread/Process 等表的深度分析。 | "对 `/path/to/trace_view.json` 执行 SQL 查询，统计耗时超过 1ms 的 Slice 数量。" |
 
 ### 3. 算子性能分析 (CSV)

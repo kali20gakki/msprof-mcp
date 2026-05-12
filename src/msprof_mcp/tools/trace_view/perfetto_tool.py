@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from typing import Optional, Dict, Tuple, List, Any
 from .connection_manager import BaseTool, ToolError
 from .query_helpers import (
@@ -12,6 +13,25 @@ from .query_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(identifier: str) -> str:
+    if not _IDENTIFIER_RE.match(identifier):
+        raise ToolError("INVALID_IDENTIFIER", f"Invalid SQL identifier: {identifier}")
+    return f'"{identifier}"'
+
+
+def _sqlite_value(value: Any) -> Any:
+    if value is None or isinstance(value, (int, float, str, bytes)):
+        return value
+    if isinstance(value, bool):
+        return int(value)
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except TypeError:
+        return str(value)
 
 class SliceInfoTool(BaseTool):
     """Tool for retrieving information about slices with a given name."""
@@ -231,6 +251,446 @@ class SqlQueryTool(BaseTool):
 
         # Use the unified formatter with connection management
         return self.run_formatted(trace_path, process_name, _execute_sql_operation)
+
+
+class FlowDataTool(BaseTool):
+    """Tool for resolving flow-linked hardware operators for source slices."""
+
+    @staticmethod
+    def _normalize_arg_key(arg_key: str) -> str:
+        return arg_key[5:] if arg_key.startswith("args.") else arg_key
+
+    @staticmethod
+    def _extract_arg_value(row: Any) -> Any:
+        for field_name in ("display_value", "string_value", "int_value", "real_value"):
+            value = getattr(row, field_name, None)
+            if value is not None:
+                return value
+        return None
+
+    def _load_args_by_set_id(
+            self,
+            tp: Any,
+            arg_set_ids: set[int],
+    ) -> Dict[int, Dict[str, Any]]:
+        if not arg_set_ids:
+            return {}
+
+        args_query = (
+                "SELECT * FROM args WHERE arg_set_id IN ("
+                + ", ".join(str(arg_set_id) for arg_set_id in sorted(arg_set_ids))
+                + ") ORDER BY arg_set_id, flat_key, key"
+        )
+
+        args_by_set_id: Dict[int, Dict[str, Any]] = {}
+        for row in tp.query(args_query):
+            arg_set_id = getattr(row, "arg_set_id", None)
+            if not isinstance(arg_set_id, int):
+                continue
+
+            arg_key = getattr(row, "flat_key", None) or getattr(row, "key", None)
+            if not isinstance(arg_key, str) or not arg_key:
+                continue
+
+            arg_value = self._extract_arg_value(row)
+            if arg_value is None:
+                continue
+
+            if arg_set_id not in args_by_set_id:
+                args_by_set_id[arg_set_id] = {}
+            args_by_set_id[arg_set_id][self._normalize_arg_key(arg_key)] = arg_value
+
+        return args_by_set_id
+
+    @staticmethod
+    def _flow_link_select_columns() -> str:
+        return """
+ 	                 cpu.id AS source_slice_id,
+ 	                 cpu.name AS source_op,
+ 	                 cpu.ts AS source_ts,
+ 	                 cpu.dur AS source_dur,
+ 	                 hw.name AS source_kernel_name,
+ 	                 hw.id AS linked_slice_id,
+ 	                 hw.ts AS linked_ts,
+ 	                 hw.dur AS linked_dur,
+ 	                 hw.name AS linked_name,
+ 	                 hw.arg_set_id AS linked_arg_set_id
+ 	         """
+
+    @classmethod
+    def _ascend_hardware_join_clause(cls, slice_alias: str) -> str:
+        return f"""
+ 	             JOIN track {slice_alias}_track ON {slice_alias}.track_id = {slice_alias}_track.id
+ 	             LEFT JOIN process_track {slice_alias}_pt ON {slice_alias}.track_id = {slice_alias}_pt.id
+ 	             LEFT JOIN process {slice_alias}_proc ON {slice_alias}_pt.upid = {slice_alias}_proc.upid
+ 	             LEFT JOIN thread_track {slice_alias}_tt ON {slice_alias}.track_id = {slice_alias}_tt.id
+ 	             LEFT JOIN thread {slice_alias}_thread ON {slice_alias}_tt.utid = {slice_alias}_thread.utid
+ 	             LEFT JOIN process {slice_alias}_thread_proc ON {slice_alias}_thread.upid = {slice_alias}_thread_proc.upid
+ 	         """
+
+    @classmethod
+    def _ascend_hardware_where_clause(cls, slice_alias: str) -> str:
+        return (
+            f"UPPER(COALESCE({slice_alias}_proc.name, {slice_alias}_thread_proc.name, '')) "
+            "= 'ASCEND HARDWARE'"
+        )
+
+    @classmethod
+    def _cpu_op_link_query(cls) -> str:
+        select_columns = cls._flow_link_select_columns()
+        return f"""
+ 	             SELECT
+ 	                 {select_columns}
+ 	             FROM ranged_slices cpu
+ 	             JOIN flow f ON f.slice_out = cpu.id
+ 	             JOIN ranged_slices hw ON hw.id = f.slice_in
+ 	             WHERE cpu.category = 'cpu_op'
+ 	               AND COALESCE(hw.category, '') <> 'cpu_op'
+
+ 	             UNION
+
+ 	             SELECT
+ 	                 {select_columns}
+ 	             FROM ranged_slices cpu
+ 	             JOIN flow f ON f.slice_in = cpu.id
+ 	             JOIN ranged_slices hw ON hw.id = f.slice_out
+ 	             WHERE cpu.category = 'cpu_op'
+ 	               AND COALESCE(hw.category, '') <> 'cpu_op'
+ 	         """
+
+    @classmethod
+    def _npu_op_link_query(cls) -> str:
+        select_columns = cls._flow_link_select_columns()
+        hardware_joins = cls._ascend_hardware_join_clause("hw")
+        hardware_where = cls._ascend_hardware_where_clause("hw")
+        return f"""
+ 	             SELECT
+ 	                 {select_columns}
+ 	             FROM ranged_slices hw
+ 	             {hardware_joins}
+ 	             JOIN flow f ON f.slice_out = hw.id
+ 	             JOIN slice cpu ON cpu.id = f.slice_in
+ 	             WHERE hw.category IS NULL
+ 	               AND {hardware_where}
+ 	               AND cpu.category = 'cpu_op'
+
+ 	             UNION
+
+ 	             SELECT
+ 	                 {select_columns}
+ 	             FROM ranged_slices hw
+ 	             {hardware_joins}
+ 	             JOIN flow f ON f.slice_in = hw.id
+ 	             JOIN slice cpu ON cpu.id = f.slice_out
+ 	             WHERE hw.category IS NULL
+ 	               AND {hardware_where}
+ 	               AND cpu.category = 'cpu_op'
+ 	         """
+
+    @classmethod
+    def _npu_op_fallback_query(cls) -> str:
+        hardware_joins = cls._ascend_hardware_join_clause("hw")
+        hardware_where = cls._ascend_hardware_where_clause("hw")
+        return """
+ 	             SELECT
+ 	                 hw.id AS npu_slice_id,
+ 	                 hw.ts AS npu_ts,
+ 	                 hw.dur AS npu_dur,
+ 	                 hw.name AS npu_name,
+ 	                 hw.arg_set_id AS npu_arg_set_id
+ 	             FROM ranged_slices hw
+ 	         """ + hardware_joins + f"""
+ 	             WHERE hw.category IS NULL
+ 	               AND {hardware_where}
+ 	               AND hw.name IS NOT NULL
+ 	               AND hw.name != ''
+ 	             ORDER BY hw.ts, hw.id
+ 	         """
+
+    @classmethod
+    def _build_flow_query(
+            cls,
+            category: str,
+            start_time: int,
+            end_time: int,
+    ) -> str:
+        link_query = (
+            cls._cpu_op_link_query()
+            if category == "cpu_op"
+            else cls._npu_op_link_query()
+        )
+        return f"""
+ 	         WITH ranged_slices AS (
+ 	             SELECT
+ 	                 s.*
+ 	             FROM slice s
+ 	             WHERE s.ts BETWEEN {start_time} AND {end_time}
+ 	         ),
+ 	         linked_slices AS (
+ 	             {link_query}
+ 	         )
+ 	         SELECT
+ 	             *
+ 	         FROM linked_slices
+ 	         WHERE source_op IS NOT NULL AND source_op != ''
+ 	           AND linked_name IS NOT NULL AND linked_name != ''
+ 	         ORDER BY source_op, linked_name
+ 	         """
+
+    @staticmethod
+    def _compute_cpu_op_to_npu_op_duration(
+            cpu_op_start_time: Any,
+            cpu_op_duration: Any,
+            npu_op_start_time: Any,
+            npu_op_duration: Any,
+    ) -> Any:
+        try:
+            cpu_op_end_time = int(cpu_op_start_time) + int(cpu_op_duration)
+            npu_op_end_time = int(npu_op_start_time) + int(npu_op_duration)
+        except (TypeError, ValueError):
+            return None
+        return npu_op_end_time - cpu_op_end_time
+
+    @staticmethod
+    def _time_sort_key(cpu_op_info: Dict[str, Any]) -> tuple[int, int]:
+        cpu_op_start_time = cpu_op_info.get("cpu_op_start_time")
+        try:
+            return (0, int(cpu_op_start_time))
+        except (TypeError, ValueError):
+            pass
+
+        npu_ops = cpu_op_info.get("npu_ops", [])
+        if npu_ops and isinstance(npu_ops[0], dict):
+            npu_op_start_time = npu_ops[0].get("npu_op_start_time")
+            try:
+                return (1, int(npu_op_start_time))
+            except (TypeError, ValueError):
+                pass
+
+        return (2, 0)
+
+    @staticmethod
+    def _validate_flow_data_params(
+            start_time: int | float,
+            end_time: int | float,
+            category: str,
+    ) -> tuple[int, int, str]:
+        try:
+            start_time_int = int(start_time)
+            end_time_int = int(end_time)
+        except (TypeError, ValueError) as exc:
+            raise ToolError("INVALID_PARAMETERS", "start_time and end_time must be numeric") from exc
+
+        if end_time_int < start_time_int:
+            raise ToolError("INVALID_PARAMETERS", "end_time must be greater than or equal to start_time")
+
+        if isinstance(category, str):
+            category = category.strip()
+        if category not in {"cpu_op", "npu_op"}:
+            raise ToolError("INVALID_PARAMETERS", "category must be 'cpu_op' or 'npu_op'")
+
+        return start_time_int, end_time_int, category
+
+    def _build_npu_op_fallback_query(self, start_time: int, end_time: int) -> str:
+        return f"""
+ 	         WITH ranged_slices AS (
+ 	             SELECT
+ 	                 s.*
+ 	             FROM slice s
+ 	             WHERE s.ts BETWEEN {start_time} AND {end_time}
+ 	         )
+ 	         {self._npu_op_fallback_query()}
+ 	         """
+
+    @staticmethod
+    def _is_valid_linked_row(row: Any) -> bool:
+        return (
+                isinstance(getattr(row, "source_slice_id", None), int)
+                and isinstance(getattr(row, "source_op", None), str)
+                and isinstance(getattr(row, "linked_slice_id", None), int)
+        )
+
+    @staticmethod
+    def _is_dequeue_linked_row(row: Any) -> bool:
+        source_kernel_name = getattr(row, "source_kernel_name", None)
+        linked_name = getattr(row, "linked_name", None)
+        source_is_dequeue = isinstance(source_kernel_name, str) and "Dequeue" in source_kernel_name
+        linked_is_dequeue = isinstance(linked_name, str) and "Dequeue" in linked_name
+        return source_is_dequeue or linked_is_dequeue
+
+    def _collect_linked_rows(self, tp: Any, query: str) -> tuple[List[Any], set[int]]:
+        seen_pairs: set[tuple[int, int]] = set()
+        linked_rows: List[Any] = []
+        linked_arg_set_ids: set[int] = set()
+
+        for row in tp.query(query):
+            if not self._is_valid_linked_row(row) or self._is_dequeue_linked_row(row):
+                continue
+
+            dedup_key = (getattr(row, "source_slice_id"), getattr(row, "linked_slice_id"))
+            if dedup_key in seen_pairs:
+                continue
+            seen_pairs.add(dedup_key)
+            linked_rows.append(row)
+
+            linked_arg_set_id = getattr(row, "linked_arg_set_id", None)
+            if isinstance(linked_arg_set_id, int):
+                linked_arg_set_ids.add(linked_arg_set_id)
+
+        return linked_rows, linked_arg_set_ids
+
+    def _build_linked_npu_info(
+            self,
+            row: Any,
+            linked_args: Dict[int, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        linked_arg_set_id = getattr(row, "linked_arg_set_id", None)
+        flattened_args = (
+            linked_args.get(linked_arg_set_id, {}).copy()
+            if isinstance(linked_arg_set_id, int)
+            else {}
+        )
+        cpu_op_start_time = getattr(row, "source_ts", None)
+        cpu_op_duration = getattr(row, "source_dur", None)
+        npu_op_start_time = getattr(row, "linked_ts", None)
+        npu_op_duration = getattr(row, "linked_dur", None)
+        linked_info: Dict[str, Any] = {
+            "npu_op_start_time": npu_op_start_time,
+            "npu_op_duration": npu_op_duration,
+            "npu_op_name": getattr(row, "linked_name", None),
+            "cpu_op_to_npu_op_duration": self._compute_cpu_op_to_npu_op_duration(
+                cpu_op_start_time,
+                cpu_op_duration,
+                npu_op_start_time,
+                npu_op_duration,
+            ),
+        }
+        linked_info.update(flattened_args)
+        return linked_info
+
+    @staticmethod
+    def _get_or_create_cpu_op_instance(
+            cpu_op_instances: Dict[int, Dict[str, Any]],
+            row: Any,
+    ) -> Dict[str, Any]:
+        source_slice_id = getattr(row, "source_slice_id")
+        if source_slice_id not in cpu_op_instances:
+            cpu_op_instances[source_slice_id] = {
+                "cpu_op_name": getattr(row, "source_op", None),
+                "cpu_op_start_time": getattr(row, "source_ts", None),
+                "cpu_op_duration": getattr(row, "source_dur", None),
+                "npu_ops": [],
+            }
+        return cpu_op_instances[source_slice_id]
+
+    def _build_cpu_op_instances(
+            self,
+            linked_rows: List[Any],
+            linked_args: Dict[int, Dict[str, Any]],
+    ) -> Dict[int, Dict[str, Any]]:
+        cpu_op_instances: Dict[int, Dict[str, Any]] = {}
+        for row in linked_rows:
+            if not self._is_valid_linked_row(row):
+                continue
+            cpu_op_info = self._get_or_create_cpu_op_instance(cpu_op_instances, row)
+            cpu_op_info["npu_ops"].append(self._build_linked_npu_info(row, linked_args))
+        return cpu_op_instances
+
+    @staticmethod
+    def _is_valid_fallback_row(row: Any) -> bool:
+        npu_slice_id = getattr(row, "npu_slice_id", None)
+        npu_name = getattr(row, "npu_name", None)
+        return isinstance(npu_slice_id, int) and isinstance(npu_name, str) and "Dequeue" not in npu_name
+
+    def _collect_fallback_rows(self, tp: Any, query: str) -> tuple[List[Any], set[int]]:
+        fallback_rows: List[Any] = []
+        fallback_arg_set_ids: set[int] = set()
+        seen_npu_ids: set[int] = set()
+
+        for row in tp.query(query):
+            npu_slice_id = getattr(row, "npu_slice_id", None)
+            if not self._is_valid_fallback_row(row) or npu_slice_id in seen_npu_ids:
+                continue
+            seen_npu_ids.add(npu_slice_id)
+            fallback_rows.append(row)
+
+            npu_arg_set_id = getattr(row, "npu_arg_set_id", None)
+            if isinstance(npu_arg_set_id, int):
+                fallback_arg_set_ids.add(npu_arg_set_id)
+
+        return fallback_rows, fallback_arg_set_ids
+
+    @staticmethod
+    def _flatten_fallback_args(row: Any, fallback_args: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
+        npu_arg_set_id = getattr(row, "npu_arg_set_id", None)
+        if isinstance(npu_arg_set_id, int):
+            return fallback_args.get(npu_arg_set_id, {}).copy()
+        return {}
+
+    def _build_fallback_result(
+            self,
+            fallback_rows: List[Any],
+            fallback_args: Dict[int, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        fallback_result: List[Dict[str, Any]] = []
+        for row in fallback_rows:
+            npu_op_info: Dict[str, Any] = {
+                "npu_op_start_time": getattr(row, "npu_ts", None),
+                "npu_op_duration": getattr(row, "npu_dur", None),
+                "npu_op_name": getattr(row, "npu_name", None),
+                "cpu_op_to_npu_op_duration": None,
+            }
+            npu_op_info.update(self._flatten_fallback_args(row, fallback_args))
+            fallback_result.append({
+                "cpu_op_name": "unknown",
+                "cpu_op_start_time": "unknown",
+                "cpu_op_duration": "unknown",
+                "npu_ops": [npu_op_info],
+            })
+
+        fallback_result.sort(key=self._time_sort_key)
+        return fallback_result
+
+    def _execute_flow_data_query(
+            self,
+            tp: Any,
+            query: str,
+            npu_op_fallback_query: str,
+            category: str,
+    ) -> List[Dict[str, Any]]:
+        linked_rows, linked_arg_set_ids = self._collect_linked_rows(tp, query)
+        linked_args = self._load_args_by_set_id(tp, linked_arg_set_ids)
+        cpu_op_instances = self._build_cpu_op_instances(linked_rows, linked_args)
+
+        if cpu_op_instances or category == "cpu_op":
+            result = list(cpu_op_instances.values())
+            result.sort(key=self._time_sort_key)
+            return result
+
+        fallback_rows, fallback_arg_set_ids = self._collect_fallback_rows(tp, npu_op_fallback_query)
+        fallback_args = self._load_args_by_set_id(tp, fallback_arg_set_ids)
+        return self._build_fallback_result(fallback_rows, fallback_args)
+
+    def get_flow_data(
+            self,
+            trace_path: str,
+            start_time: int | float,
+            end_time: int | float,
+            category: str = "cpu_op",
+    ) -> List[Dict[str, Any]]:
+        """Return flow-linked operator details within the given time range."""
+        start_time_int, end_time_int, category = self._validate_flow_data_params(
+            start_time,
+            end_time,
+            category,
+        )
+        query = self._build_flow_query(category, start_time_int, end_time_int)
+        npu_op_fallback_query = self._build_npu_op_fallback_query(start_time_int, end_time_int)
+
+        def _operation(tp) -> List[Dict[str, Any]]:
+            return self._execute_flow_data_query(tp, query, npu_op_fallback_query, category)
+
+        return self.execute_with_connection(trace_path, _operation)
 
 class SliceFinderTool(BaseTool):
     """Tool for discovering slices matching a pattern with optional filters."""
