@@ -9,6 +9,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# Rough cap on the size of JSON payload returned to the model.
+MAX_RESULT_CHARS = 100_000
+
 
 class KernelDetailsAnalyzer:
     """
@@ -712,8 +715,15 @@ class GenericCsvAnalyzer:
                     else:
                         row_data[col] = None
                 result["sample_data"].append(row_data)
-            
-            return json.dumps(result, indent=2)
+
+            payload_str = json.dumps(result, ensure_ascii=False)
+            if len(payload_str) > MAX_RESULT_CHARS:
+                return self._error(
+                    "RESULT_TOO_LARGE",
+                    "Result is too large to return as JSON preview. "
+                )
+
+            return payload_str
             
         except FileNotFoundError:
             return json.dumps({
@@ -859,8 +869,20 @@ class GenericCsvAnalyzer:
                 "returned_rows": len(matches),
                 "matches": matches
             }
-            
-            return json.dumps(result, indent=2)
+
+            # Guard against excessively large JSON payloads.
+            payload_str = json.dumps(result, ensure_ascii=False)
+            if len(payload_str) > MAX_RESULT_CHARS:
+                return self._error(
+                    "RESULT_TOO_LARGE",
+                    (
+                        "Result is too large to return as JSON preview. "
+                        "Please reduce the number of rows/columns (for example by "
+                        "adding a stricter LIMIT)."
+                    ),
+                )
+
+            return payload_str
             
         except FileNotFoundError:
             return json.dumps({
@@ -873,6 +895,17 @@ class GenericCsvAnalyzer:
                 "error": "SEARCH_FAILED",
                 "message": str(e)
             }, indent=2)
+
+    @staticmethod
+    def _error(code: str, message: str) -> str:
+        return json.dumps(
+            {
+                "error": code,
+                "message": message,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":

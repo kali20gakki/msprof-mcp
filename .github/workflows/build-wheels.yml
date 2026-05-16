@@ -1,0 +1,183 @@
+name: Build Wheels
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      combined-artifact-url:
+        description: Download URL for the combined wheel artifact of this run.
+        value: ${{ jobs.bundle-artifacts.outputs.combined-artifact-url }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-wheels-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest "mcp[cli]>=1.26.0" "perfetto>=0.16.0" "pandas>=2.0.0"
+          python -m pip install --no-deps -e .
+
+      - name: Run unit tests
+        run: python -m pytest tests -q
+
+  build-wheel:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 30
+    needs: unit-tests
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runs_on: ubuntu-24.04
+            package_resource_name: trace_processor_shell
+          - name: linux-arm64
+            runs_on: ubuntu-24.04-arm
+            package_resource_name: trace_processor_shell
+          - name: windows-amd64
+            runs_on: windows-2025
+            package_resource_name: trace_processor_shell.exe
+          - name: macos-x86_64
+            runs_on: macos-15-intel
+            package_resource_name: trace_processor_shell
+          - name: macos-arm64
+            runs_on: macos-15
+            package_resource_name: trace_processor_shell
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Install build frontend
+        run: python -m pip install --upgrade pip build
+
+      - name: Download trace_processor_shell for this runner
+        run: python scripts/download_trace_processor_shell.py --clean
+
+      - name: Build wheel
+        run: python -m build --wheel
+
+      - name: Verify wheel contents
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          wheels = sorted(Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"Expected exactly one wheel, found {len(wheels)}: {wheels}")
+
+          wheel = wheels[0]
+          expected_resource = "msprof_mcp/resources/perfetto/${{ matrix.package_resource_name }}"
+
+          with zipfile.ZipFile(wheel) as zf:
+              names = set(zf.namelist())
+
+          if expected_resource not in names:
+              raise SystemExit(
+                  f"Missing bundled resource {expected_resource} in {wheel.name}"
+              )
+
+          unexpected_resources = sorted(
+              name
+              for name in names
+              if name.startswith("msprof_mcp/resources/perfetto/trace_processor_shell-")
+          )
+          if unexpected_resources:
+              raise SystemExit(
+                  f"Wheel should not contain source-only resource names: {unexpected_resources}"
+              )
+
+          print(f"Verified {wheel.name}")
+          print(f"Bundled resource: {expected_resource}")
+          PY
+
+      - name: List built files
+        run: ls -lh dist
+
+      - name: Upload wheel artifact
+        id: upload_wheel_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.name }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Add wheel link to job summary
+        run: |
+          {
+            echo "### Wheel artifact"
+            echo ""
+            echo "- Platform: \`${{ matrix.name }}\`"
+            echo "- Download: [wheel-${{ matrix.name }}](${{ steps.upload_wheel_artifact.outputs.artifact-url }})"
+            echo "- Note: the artifact link requires GitHub sign-in and follows the 14-day retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  bundle-artifacts:
+    name: bundle-all-wheels
+    runs-on: ubuntu-24.04
+    needs: build-wheel
+    outputs:
+      combined-artifact-url: ${{ steps.upload_combined_artifact.outputs.artifact-url }}
+
+    steps:
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+
+      - name: Show bundled wheels
+        run: ls -lh dist
+
+      - name: Upload combined wheel artifact
+        id: upload_combined_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-all
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Add combined wheel link to job summary
+        run: |
+          run_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          {
+            echo "### Combined wheel artifact"
+            echo ""
+            echo "- Download: [wheels-all](${{ steps.upload_combined_artifact.outputs.artifact-url }})"
+            echo "- Run page: [${{ github.run_id }}](${run_url})"
+            echo "- Note: the artifact link requires GitHub sign-in and follows the 14-day retention policy."
+          } >> "$GITHUB_STEP_SUMMARY"

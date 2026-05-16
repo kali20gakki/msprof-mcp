@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import platform
+import re
 import stat
 import sys
 from importlib import resources
@@ -22,6 +23,11 @@ CANONICAL_RESOURCE_NAMES = {
     "linux": "trace_processor_shell",
     "win32": "trace_processor_shell.exe",
 }
+GLIBC_VERSION_PATTERN = re.compile(rb"GLIBC_(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+class TraceProcessorShellCompatibilityError(RuntimeError):
+    """Raised when a trace_processor_shell binary cannot run on this host."""
 
 
 def resolve_trace_processor_shell_path() -> str | None:
@@ -34,17 +40,25 @@ def resolve_trace_processor_shell_path() -> str | None:
             source=f"environment variable {TRACE_PROCESSOR_SHELL_ENV}",
         )
 
+    metadata_entry = _select_metadata_entry(_load_metadata_entries())
     canonical_resource_name = _canonical_resource_name()
     bundled_path = _resolve_resource_path(canonical_resource_name)
     if bundled_path is not None:
-        return bundled_path
+        return _validate_shell_path(
+            bundled_path,
+            source=f"bundled resource {canonical_resource_name}",
+            metadata_entry=metadata_entry,
+        )
 
-    metadata_entry = _select_metadata_entry(_load_metadata_entries())
     if metadata_entry is not None:
         resource_name = _resource_name_from_entry(metadata_entry)
         bundled_path = _resolve_resource_path(resource_name)
         if bundled_path is not None:
-            return bundled_path
+            return _validate_shell_path(
+                bundled_path,
+                source=f"bundled resource {resource_name}",
+                metadata_entry=metadata_entry,
+            )
 
         logger.warning(
             "Bundled %s metadata entry resolved to missing resource %s under %s.",
@@ -68,14 +82,12 @@ def _canonical_resource_name() -> str:
     )
 
 
-def _resolve_resource_path(resource_name: str) -> str | None:
+def _resolve_resource_path(resource_name: str) -> Path | None:
     resource = resources.files(RESOURCE_PACKAGE).joinpath(resource_name)
     if not resource.is_file():
         return None
 
-    bundled_path = Path(os.fspath(resource))
-    _ensure_executable(bundled_path)
-    return str(bundled_path)
+    return Path(os.fspath(resource))
 
 
 def _load_metadata_entries() -> list[dict]:
@@ -150,11 +162,17 @@ def _normalize_machine(machine: str) -> str:
     return aliases.get(normalized, normalized)
 
 
-def _validate_shell_path(path: Path, *, source: str) -> str:
+def _validate_shell_path(
+    path: Path,
+    *,
+    source: str,
+    metadata_entry: dict | None = None,
+) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"{source} points to a missing file: {path}")
 
     _ensure_executable(path)
+    _ensure_linux_glibc_compatibility(path, source=source, metadata_entry=metadata_entry)
     return str(path)
 
 
@@ -168,3 +186,102 @@ def _ensure_executable(path: Path) -> None:
         return
 
     path.chmod(mode | execute_bits)
+
+
+def _ensure_linux_glibc_compatibility(
+    path: Path,
+    *,
+    source: str,
+    metadata_entry: dict | None,
+) -> None:
+    if sys.platform != "linux":
+        return
+
+    required_version = _glibc_min_version_from_entry(metadata_entry)
+    if required_version is None:
+        required_version = _detect_glibc_min_version(path)
+    if required_version is None:
+        return
+
+    libc_name, current_version = _current_linux_libc()
+    required_display = _format_version_tuple(required_version)
+    if libc_name != "glibc" or current_version is None:
+        detected = libc_name or "unknown libc"
+        raise TraceProcessorShellCompatibilityError(
+            f"{source} requires glibc >= {required_display}, but this system reports "
+            f"{detected}. Set {TRACE_PROCESSOR_SHELL_ENV} to a compatible "
+            "trace_processor_shell binary, or run on a glibc-based distro that "
+            f"meets glibc >= {required_display}."
+        )
+
+    if current_version < required_version:
+        raise TraceProcessorShellCompatibilityError(
+            f"{source} requires glibc >= {required_display}, but this system reports "
+            f"glibc {_format_version_tuple(current_version)}. Set "
+            f"{TRACE_PROCESSOR_SHELL_ENV} to a compatible trace_processor_shell binary, "
+            f"or run on a distro with glibc >= {required_display}."
+        )
+
+
+def _glibc_min_version_from_entry(entry: dict | None) -> tuple[int, int, int] | None:
+    if not isinstance(entry, dict):
+        return None
+
+    version = entry.get("glibc_min_version")
+    if not isinstance(version, str) or not version:
+        return None
+
+    return _parse_version_tuple(version)
+
+
+def _detect_glibc_min_version(path: Path) -> tuple[int, int, int] | None:
+    versions = {
+        tuple(int(part or 0) for part in match.groups())
+        for match in GLIBC_VERSION_PATTERN.finditer(path.read_bytes())
+    }
+    if not versions:
+        return None
+
+    return max(versions)
+
+
+def _current_linux_libc() -> tuple[str | None, tuple[int, int, int] | None]:
+    try:
+        value = os.confstr("CS_GNU_LIBC_VERSION")
+    except (AttributeError, OSError, ValueError):
+        value = None
+    if isinstance(value, str) and value:
+        prefix, _, version = value.partition(" ")
+        if prefix == "glibc" and version:
+            return "glibc", _parse_version_tuple(version)
+
+    libc_name, libc_version = platform.libc_ver()
+    if libc_name and libc_version:
+        return libc_name, _parse_version_tuple(libc_version)
+    return None, None
+
+
+def _parse_version_tuple(version: str) -> tuple[int, int, int]:
+    parts = version.split(".")
+    if len(parts) > 3 or not parts:
+        raise TraceProcessorShellCompatibilityError(
+            f"Unsupported glibc version string: {version}"
+        )
+
+    try:
+        numbers = [int(part) for part in parts]
+    except ValueError as exc:
+        raise TraceProcessorShellCompatibilityError(
+            f"Unsupported glibc version string: {version}"
+        ) from exc
+
+    while len(numbers) < 3:
+        numbers.append(0)
+    return numbers[0], numbers[1], numbers[2]
+
+
+def _format_version_tuple(version: tuple[int, int, int]) -> str:
+    major, minor, patch = version
+    if patch:
+        return f"{major}.{minor}.{patch}"
+    return f"{major}.{minor}"
