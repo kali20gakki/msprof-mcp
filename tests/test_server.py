@@ -89,10 +89,6 @@ class DummyCommunicationMatrixAnalyzer:
         return "analyze_communication"
 
 
-def fake_msprof_analyze_advisor(*args, **kwargs):
-    return "msprof_analyze_advisor"
-
-
 def fake_execute_sql(*args, **kwargs):
     return "execute_sql"
 
@@ -193,7 +189,6 @@ def test_create_server_registers_all_public_tools(monkeypatch):
         "CommunicationMatrixAnalyzer",
         DummyCommunicationMatrixAnalyzer,
     )
-    monkeypatch.setattr(server, "msprof_analyze_advisor", fake_msprof_analyze_advisor)
     monkeypatch.setattr(server, "execute_sql", fake_execute_sql)
     monkeypatch.setattr(server, "execute_sql_to_csv", fake_execute_sql_to_csv)
 
@@ -202,7 +197,6 @@ def test_create_server_registers_all_public_tools(monkeypatch):
     assert isinstance(mcp, FakeMCP)
     assert mcp.name == "msprof_mcp"
     assert [fn.__name__ for fn in mcp.registered] == [
-        "fake_msprof_analyze_advisor",
         "find_slices",
         "execute_sql_query",
         "analyze_overlap",

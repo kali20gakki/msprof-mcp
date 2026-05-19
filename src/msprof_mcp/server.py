@@ -6,7 +6,6 @@ FastMCP server entry point.
 import logging
 import os
 from mcp.server.fastmcp import FastMCP
-from .tools.msprof_analyze_cmd import msprof_analyze_advisor
 from .tools.trace_view.trace_view_analyze import TraceViewAnalyzeTool
 from .tools.csv_analyze import KernelDetailsAnalyzer, OpStatisticAnalyzer, GenericCsvAnalyzer
 from .tools.json_analyze import ProfilerInfoAnalyzer, CommunicationMatrixAnalyzer
@@ -52,9 +51,6 @@ def configure_logging() -> int:
 def create_server() -> FastMCP:
     # Create an MCP server
     mcp = FastMCP("msprof_mcp")
-
-    # Register tools
-    mcp.tool()(msprof_analyze_advisor)
 
     # Initialize trace view analysis tool and register its methods
     trace_view_tool = TraceViewAnalyzeTool()
