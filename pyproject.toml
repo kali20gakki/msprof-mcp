@@ -7,8 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.26.0",
     "perfetto>=0.16.0",
-    "pandas>=2.0.0",
-    "msprof-analyze==8.5.0",
+    "pandas>=2.0.0"
 ]
 authors = [
     { name = "Wei Zhang", email = "example@example.com" }
