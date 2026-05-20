@@ -54,6 +54,7 @@ def create_server() -> FastMCP:
 
     # Initialize trace view analysis tool and register its methods
     trace_view_tool = TraceViewAnalyzeTool()
+    mcp.tool()(trace_view_tool.get_flow_data)
     mcp.tool()(trace_view_tool.find_slices)
     mcp.tool()(trace_view_tool.execute_sql_query)
     mcp.tool()(trace_view_tool.analyze_overlap)
