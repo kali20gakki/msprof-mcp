@@ -45,6 +45,9 @@ class FakeHandler:
 
 
 class DummyTraceViewAnalyzeTool:
+    def get_flow_data(self, *args, **kwargs):
+        return "get_flow_data"
+
     def find_slices(self, *args, **kwargs):
         return "find_slices"
 
@@ -95,6 +98,10 @@ def fake_execute_sql(*args, **kwargs):
 
 def fake_execute_sql_to_csv(*args, **kwargs):
     return "execute_sql_to_csv"
+
+
+def fake_create_dispatch_view(*args, **kwargs):
+    return "create_dispatch_view"
 
 
 def test_configure_logging_defaults_to_warning_and_quiets_mcp_logger(monkeypatch):
@@ -191,12 +198,14 @@ def test_create_server_registers_all_public_tools(monkeypatch):
     )
     monkeypatch.setattr(server, "execute_sql", fake_execute_sql)
     monkeypatch.setattr(server, "execute_sql_to_csv", fake_execute_sql_to_csv)
+    monkeypatch.setattr(server, "create_dispatch_view", fake_create_dispatch_view)
 
     mcp = server.create_server()
 
     assert isinstance(mcp, FakeMCP)
     assert mcp.name == "msprof_mcp"
     assert [fn.__name__ for fn in mcp.registered] == [
+        "get_flow_data",
         "find_slices",
         "execute_sql_query",
         "analyze_overlap",
@@ -210,6 +219,7 @@ def test_create_server_registers_all_public_tools(monkeypatch):
         "analyze_communication",
         "fake_execute_sql",
         "fake_execute_sql_to_csv",
+        "fake_create_dispatch_view",
     ]
 
 

@@ -10,6 +10,9 @@ from .tools.trace_view.trace_view_analyze import TraceViewAnalyzeTool
 from .tools.csv_analyze import KernelDetailsAnalyzer, OpStatisticAnalyzer, GenericCsvAnalyzer
 from .tools.json_analyze import ProfilerInfoAnalyzer, CommunicationMatrixAnalyzer
 from .tools.db_query import execute_sql, execute_sql_to_csv
+from .tools.profiler_view_tools import (
+    create_dispatch_view,
+)
 # Import other tools here as needed in the future
 
 logger = logging.getLogger(__name__)
@@ -80,6 +83,7 @@ def create_server() -> FastMCP:
 
     mcp.tool()(execute_sql)
     mcp.tool()(execute_sql_to_csv)
+    mcp.tool()(create_dispatch_view)
 
     return mcp
 
