@@ -44,6 +44,22 @@ def test_execute_sql_blocks_write_queries(tmp_path):
     assert payload["error"] == "WRITE_OPERATION_BLOCKED"
 
 
+def test_execute_sql_reports_pandas_database_errors_as_sql_failures(tmp_path, caplog):
+    db_path = tmp_path / "sample.db"
+    build_db(db_path)
+
+    payload = json.loads(
+        execute_sql(
+            str(db_path),
+            "SELECT missing_column FROM items",
+        )
+    )
+
+    assert payload["error"] == "SQL_EXECUTION_FAILED"
+    assert "missing_column" in payload["message"]
+    assert not any(record.exc_info for record in caplog.records)
+
+
 def test_execute_sql_to_csv_exports_rows(tmp_path):
     db_path = tmp_path / "sample.db"
     build_db(db_path)
