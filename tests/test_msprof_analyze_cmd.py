@@ -20,7 +20,7 @@ def test_msprof_analyze_advisor_executes_expected_command(monkeypatch, tmp_path)
     profiler_dir = tmp_path / "profiler"
     profiler_dir.mkdir()
 
-    def fake_run(cmd, capture_output, text, check, timeout):
+    def fake_run(cmd, capture_output, text, check, timeout, stdin):
         assert cmd == [
             "msprof-analyze",
             "advisor",
@@ -33,6 +33,7 @@ def test_msprof_analyze_advisor_executes_expected_command(monkeypatch, tmp_path)
         assert text is True
         assert check is True
         assert timeout > 0
+        assert stdin is subprocess.DEVNULL
         return SimpleNamespace(returncode=0, stdout="analysis ok", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -59,7 +60,8 @@ Building dataset for timeline analysis: 9554it [00:00, 95535.31it/s]
 [2026-03-27 22:49:16][INFO] {"status":"success","results":{"summary":"ok"}}
 """.strip()
 
-    def fake_run(cmd, capture_output, text, check, timeout):
+    def fake_run(cmd, capture_output, text, check, timeout, stdin):
+        assert stdin is subprocess.DEVNULL
         return SimpleNamespace(returncode=0, stdout="", stderr=stderr_output)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
