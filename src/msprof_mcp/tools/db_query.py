@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +165,7 @@ class DBQueryTool:
                 )
 
             return payload_str
-        except sqlite3.Error as exc:
-            logger.error("SQLite query failed: %s", exc, exc_info=True)
+        except (sqlite3.Error, DatabaseError) as exc:
             return self._error("SQL_EXECUTION_FAILED", str(exc))
         except Exception as exc:
             logger.error("Unexpected execute_sql_preview failure: %s", exc, exc_info=True)
@@ -209,8 +209,7 @@ class DBQueryTool:
                 ensure_ascii=False,
                 indent=2,
             )
-        except sqlite3.Error as exc:
-            logger.error("SQLite CSV export query failed: %s", exc, exc_info=True)
+        except (sqlite3.Error, DatabaseError) as exc:
             return self._error("SQL_EXECUTION_FAILED", str(exc))
         except Exception as exc:
             logger.error("Unexpected execute_sql_to_csv failure: %s", exc, exc_info=True)
